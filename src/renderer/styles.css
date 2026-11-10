@@ -649,6 +649,60 @@ html.light .transaction-list,html.light .table { background:#fff; border-color:#
 html.light .transaction-list-head { background:#f8f9fd; }
 html.light .transaction-item:hover { background:#f8f7ff; }
 html.light .transaction-description b { color:#202638; }
+
+/* Keep navigation chrome fixed; only the workspace content scrolls. */
+html, body, #root { height: 100%; overflow: hidden; }
+.app { height: 100vh; min-height: 0; overflow: hidden; }
+.app > aside {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 20;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.app > main {
+  height: 100vh;
+  min-width: 0;
+  max-width: none;
+  margin: 0 0 0 258px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.app > main > header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin: -48px -58px 42px;
+  padding: 48px 58px 24px;
+  background: rgba(11, 14, 20, .86);
+  backdrop-filter: blur(18px);
+}
+html.light .app > main > header { background: rgba(244, 246, 251, .86); }
+
+@media (max-width: 1100px) {
+  .app > main > header {
+    margin: -34px -34px 34px;
+    padding: 34px 34px 20px;
+  }
+}
+@media (max-width: 760px) {
+  .app > aside {
+    width: 100%;
+    height: 158px;
+    inset: 0 0 auto 0;
+    overflow: hidden;
+  }
+  .app > main {
+    height: 100vh;
+    margin-left: 0;
+    padding-top: 180px;
+  }
+  .app > main > header {
+    top: 158px;
+    margin: -22px -16px 24px;
+    padding: 22px 16px 18px;
+  }
+}
 html.light .modal { background:#fff; border-color:#e2e7f0; }
 .table-search{width:100%;margin-bottom:14px;background:#10141d;border:1px solid #30394d;border-radius:8px;color:#e8ebf2;padding:10px;outline:0}
 .budget-strip{display:flex;align-items:center;gap:12px;background:#1a202c;border:1px solid #293247;border-radius:10px;padding:14px;margin-bottom:16px}.budget-strip div{flex:1}.budget-strip b,.budget-strip small{display:block}.budget-strip small{color:#7d879b;font-size:11px;margin-top:4px}.budget-strip input{width:180px;background:#10141d;border:1px solid #30394d;border-radius:7px;color:#fff;padding:9px}
