@@ -13,10 +13,16 @@ import {
   Sun,
   ChevronRight,
   Database,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 const money = (n: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
+const rupiahInput = (value: string | number) => {
+  const digits = String(value).replace(/\D/g, "");
+  return digits ? `Rp ${Number(digits).toLocaleString("id-ID")}` : "";
+};
 export default function App() {
   const [unlocked, setUnlocked] = useState(false);
   const [authReady, setAuthReady] = useState(false);
@@ -25,7 +31,7 @@ export default function App() {
   const [configured, setConfigured] = useState(false);
   const [section, setSection] = useState("Overview");
   const [dark, setDark] = useState(true);
-  const [summary, setSummary] = useState({ income: 0, expense: 0 });
+  const [summary, setSummary] = useState({ income: 0, expense: 0, savings: 0 });
   const [tx, setTx] = useState<any[]>([]);
   const [vault, setVault] = useState<any[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -34,11 +40,16 @@ export default function App() {
   const [selectedVault, setSelectedVault] = useState<any>(null);
   const [editingVault, setEditingVault] = useState<any>(null);
   const [vaultPassword, setVaultPassword] = useState("");
+  const [showVaultPassword, setShowVaultPassword] = useState(false);
   const [vaultKind, setVaultKind] = useState("account");
   const [vaultFilter, setVaultFilter] = useState("all");
   const [vaultSearch, setVaultSearch] = useState("");
   const [autoLockMinutes, setAutoLockMinutes] = useState(() => Number(localStorage.getItem("saku:auto-lock-minutes") || "15"));
   const [transactionFilter, setTransactionFilter] = useState("all");
+  const [transactionSearch, setTransactionSearch] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState("all");
+  const [transactionMonth, setTransactionMonth] = useState("");
+  const [transactionSort, setTransactionSort] = useState("date-desc");
   const [budget, setBudget] = useState(0);
   const [savings, setSavings] = useState<any[]>([]);
   const [editingSavings, setEditingSavings] = useState<any>(null);
@@ -51,7 +62,7 @@ export default function App() {
   const [recoveryKey, setRecoveryKey] = useState("");
   const [recoveryPin, setRecoveryPin] = useState("");
   const [changePinOpen, setChangePinOpen] = useState(false);
-  const chart = Array.from({ length: 7 }, (_, offset) => { const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - (6 - offset)); const key = date.toISOString().slice(0, 10); const dayTx = tx.filter((item) => String(item.date).slice(0, 10) === key); return { day: date.toLocaleDateString("id-ID", { weekday: "short" }), in: dayTx.filter((item) => item.type === "income").reduce((sum, item) => sum + Number(item.amount), 0), out: dayTx.filter((item) => item.type === "expense").reduce((sum, item) => sum + Number(item.amount), 0) }; });
+  const chart = Array.from({ length: 7 }, (_, offset) => { const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - (6 - offset)); const key = date.toISOString().slice(0, 10); const dayTx = tx.filter((item) => String(item.date).slice(0, 10) === key); return { day: date.toLocaleDateString("id-ID", { weekday: "short" }), in: dayTx.filter((item) => item.type === "income").reduce((sum, item) => sum + Number(item.amount), 0), out: dayTx.filter((item) => (item.type === "expense" || item.type === "saving") && item.paid !== 0).reduce((sum, item) => sum + Number(item.amount), 0) }; });
   useEffect(() => {
     window.saku.auth.status().then((s) => {
       setConfigured(s.configured);
@@ -122,8 +133,8 @@ export default function App() {
         <div className="auth-card">
           <div className="brand auth-brand"><img src="/logo-vertikal.png" alt="SAKU" /></div>
           <LockKeyhole size={34} className="auth-lock" />
-          <h1>{configured ? "Welcome back" : "Secure your SAKU"}</h1>
-          <p>{configured ? "Masukkan PIN 6 digit untuk membuka workspace." : "Buat PIN 6 digit untuk melindungi data pribadi Anda."}</p>
+          <h1>{configured ? "Selamat datang kembali" : "Amankan SAKU Anda"}</h1>
+          <p>{configured ? "Masukkan PIN 6 digit untuk membuka ruang kerja." : "Buat PIN 6 digit untuk melindungi data pribadi Anda."}</p>
           <form onSubmit={submitPin}>
             <input
               type="password"
@@ -150,10 +161,10 @@ export default function App() {
                 placeholder="Ulangi PIN"
               />
             )}
-            <button className="primary">{configured ? "Unlock workspace" : "Create secure PIN"}</button>
+            <button className="primary">{configured ? "Buka ruang kerja" : "Buat PIN aman"}</button>
           </form>
           <small>Data tetap tersimpan lokal dan terenkripsi.</small>
-          {recoveryOpen && <div className="modal-backdrop"><form className="modal" onSubmit={submitRecovery}><h2>Recover access</h2><p className="muted">Gunakan recovery key yang dibuat saat setup PIN.</p><label>Recovery key<input required value={recoveryKey} onChange={(e) => setRecoveryKey(e.target.value)} autoFocus /></label><label>New PIN<input required inputMode="numeric" maxLength={6} pattern="[0-9]{6}" type="password" value={recoveryPin} onChange={(e) => setRecoveryPin(e.target.value.replace(/\D/g, ""))} /></label><div className="modal-actions"><button type="button" onClick={() => setRecoveryOpen(false)}>Cancel</button><button className="primary">Recover PIN</button></div></form></div>}
+          {recoveryOpen && <div className="modal-backdrop"><form className="modal" onSubmit={submitRecovery}><h2>Pulihkan akses</h2><p className="muted">Gunakan kunci pemulihan yang dibuat saat menyiapkan PIN.</p><label>Kunci pemulihan<input required value={recoveryKey} onChange={(e) => setRecoveryKey(e.target.value)} autoFocus /></label><label>PIN baru<input required inputMode="numeric" maxLength={6} pattern="[0-9]{6}" type="password" value={recoveryPin} onChange={(e) => setRecoveryPin(e.target.value.replace(/\D/g, ""))} /></label><div className="modal-actions"><button type="button" onClick={() => setRecoveryOpen(false)}>Batal</button><button className="primary">Pulihkan PIN</button></div></form></div>}
         </div>
         <Toaster theme={dark ? "dark" : "light"} />
       </div>
@@ -170,8 +181,9 @@ export default function App() {
     const payload = {
       type: f.get("type"),
       category: f.get("category"),
-      amount: Number(f.get("amount")),
+      amount: Number(String(f.get("amount") ?? "").replace(/\D/g, "")),
       note: f.get("note"),
+      paid: f.get("type") === "income" || f.get("paid") === "on",
       date: new Date().toISOString(),
     };
     if (editingTx) await window.saku.transactions.update({ ...payload, id: editingTx.id, date: editingTx.date }); else await window.saku.transactions.add(payload);
@@ -197,11 +209,24 @@ export default function App() {
     setVault(rows);
   }
   function generatePassword() { const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*"; const values = crypto.getRandomValues(new Uint32Array(24)); setVaultPassword(Array.from(values, (v) => chars[v % chars.length]).join("")); }
-  const visibleTransactions = tx.filter((item) => transactionFilter === "all" || item.type === transactionFilter);
+  const visibleTransactions = tx.filter((item) => {
+    const query = transactionSearch.trim().toLowerCase();
+    const matchesSearch = !query || `${item.category} ${item.note || ""}`.toLowerCase().includes(query);
+    const matchesType = transactionFilter === "all" || item.type === transactionFilter;
+    const matchesPayment = paymentFilter === "all" || (paymentFilter === "paid" ? item.type === "income" || item.paid !== 0 : item.type !== "income" && item.paid === 0);
+    const matchesMonth = !transactionMonth || String(item.date).slice(0, 7) === transactionMonth;
+    return matchesSearch && matchesType && matchesPayment && matchesMonth;
+  }).sort((a, b) => transactionSort === "amount-desc" ? Number(b.amount) - Number(a.amount) : transactionSort === "amount-asc" ? Number(a.amount) - Number(b.amount) : transactionSort === "date-asc" ? String(a.date).localeCompare(String(b.date)) : String(b.date).localeCompare(String(a.date)));
   const visibleVault = vault.filter((item) => (vaultFilter === "all" || item.kind === vaultFilter) && (!vaultSearch.trim() || `${item.title} ${item.kind}`.toLowerCase().includes(vaultSearch.trim().toLowerCase())));
   function updateAutoLock(value: string) { const minutes = Number(value); setAutoLockMinutes(minutes); localStorage.setItem("saku:auto-lock-minutes", String(minutes)); toast.success(`Auto-lock diatur ${minutes} menit`); }
   async function deleteTransaction(id: number) {
     setConfirmDialog({ title: "Delete transaction", message: "Transaksi ini akan dihapus secara permanen.", action: async () => { await window.saku.transactions.delete(id); setTx(await window.saku.transactions.list()); toast.success("Transaksi dihapus"); } });
+  }
+  async function markTransactionPaid(item: any) {
+    await window.saku.transactions.update({ ...item, paid: true });
+    setTx(await window.saku.transactions.list());
+    setSummary(await window.saku.summary());
+    toast.success("Pengeluaran ditandai sudah dibayar");
   }
   function editTransaction(tx: any) { setEditingTx(tx); setShowAdd(true); }
   async function deleteVault(id: number) {
@@ -209,6 +234,7 @@ export default function App() {
   }
   async function openVault(id: number) {
     const item = await window.saku.vault.read(id);
+    setShowVaultPassword(false);
     setSelectedVault(item);
   }
   async function copySecret(value: string) {
@@ -263,10 +289,10 @@ export default function App() {
           </div>
         </div>
         <nav>
-          {nav.map(([name, Icon]) => (
+              {nav.map(([name, Icon]) => (
             <button className={section === name ? "active" : ""} onClick={() => setSection(name)} key={name}>
               <Icon size={18} />
-              {name}
+              {{ Overview: "Ringkasan", Finance: "Keuangan", Vault: "Brankas", Settings: "Pengaturan" }[name]}
             </button>
           ))}
         </nav>
@@ -275,19 +301,19 @@ export default function App() {
             onClick={() => { setBackupAction("export"); setBackupPassword(""); }}
           >
             <Settings2 size={18} />
-            Backup & settings
+            Cadangan & pengaturan
           </button>
           <button
             onClick={() => { setBackupAction("import"); setBackupPassword(""); setRestoreMode("merge"); }}
           >
             <LockKeyhole size={18} />
-            Restore backup
+            Pulihkan cadangan
           </button>
           <div className="secure">
             <ShieldCheck size={18} />
             <div>
-              <b>Secure mode</b>
-              <small>Encrypted locally</small>
+              <b>Mode aman</b>
+              <small>Terenkripsi secara lokal</small>
             </div>
             <span className="dot" />
           </div>
@@ -298,7 +324,7 @@ export default function App() {
           <div>
             <p className="eyebrow">{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date()).toUpperCase()}</p>
             <h1>{section === "Overview" ? "Good morning, Rama." : section}</h1>
-            <p className="muted">Your private workspace, organized and secure.</p>
+            <p className="muted">Ruang kerja pribadi Anda, rapi dan aman.</p>
           </div>
           <div className="header-actions">
             <button className="icon-btn" onClick={() => setDark(!dark)}>
@@ -314,7 +340,7 @@ export default function App() {
                 <div className="card-label">
                   TOTAL BALANCE <span>•••</span>
                 </div>
-                <div className="balance">{money(summary.income - summary.expense)}</div>
+              <div className="balance">{money(summary.income - summary.expense - summary.savings)}</div>
                 <div className="positive">
                   <ShieldCheck size={15} /> Local balance <span>encrypted on this device</span>
                 </div>
@@ -348,10 +374,10 @@ export default function App() {
               <div className="panel chart-panel">
                 <div className="panel-head">
                   <div>
-                    <h2>Cash flow</h2>
-                    <p>Income vs spending · Last 7 days</p>
+                    <h2>Arus kas</h2>
+                    <p>Pemasukan dan pengeluaran · 7 hari terakhir</p>
                   </div>
-                  <button className="select">This week ▾</button>
+                  <button className="select">Minggu ini ▾</button>
                 </div>
                 <ResponsiveContainer width="100%" height={250}>
                   <AreaChart data={chart}>
@@ -371,22 +397,22 @@ export default function App() {
                 <div className="legend">
                   <span>
                     <i className="purple" />
-                    Income
+                    Pemasukan
                   </span>
                   <span>
                     <i className="green" />
-                    Spending
+                    Pengeluaran
                   </span>
                 </div>
               </div>
               <div className="panel">
                 <div className="panel-head">
                   <div>
-                    <h2>Recent activity</h2>
-                    <p>Your latest transactions</p>
+                    <h2>Aktivitas terbaru</h2>
+                    <p>Transaksi terakhir Anda</p>
                   </div>
                   <button className="link" onClick={() => setSection("Finance")}>
-                    View all <ChevronRight size={14} />
+                    Lihat semua <ChevronRight size={14} />
                   </button>
                 </div>
                 <div className="activity">
@@ -412,94 +438,106 @@ export default function App() {
           <section className="settings-page">
             <div className="settings-intro">
               <div>
-                <p className="eyebrow">PREFERENCES & SECURITY</p>
-                <h2>Settings</h2>
+              <p className="eyebrow">PREFERENSI & KEAMANAN</p>
+                <h2>Pengaturan</h2>
                 <p className="muted">Kelola tampilan, keamanan, dan pemindahan data SAKU.</p>
               </div>
-              <button className="primary" onClick={() => setUnlocked(false)}>Lock now</button>
+              <button className="primary" onClick={() => setUnlocked(false)}>Kunci sekarang</button>
             </div>
             <div className="settings-grid">
               <div className="panel setting-card">
                 <div className="setting-icon"><Sun size={18} /></div>
-                <h3>Appearance</h3>
+                <h3>Tampilan</h3>
                 <p className="muted">Pilih tampilan yang nyaman digunakan.</p>
-                <button className="setting-action" onClick={() => setDark(!dark)}>{dark ? "Switch to light mode" : "Switch to dark mode"}</button>
+                <button className="setting-action" onClick={() => setDark(!dark)}>{dark ? "Gunakan mode terang" : "Gunakan mode gelap"}</button>
               </div>
               <div className="panel setting-card">
                 <div className="setting-icon green"><ShieldCheck size={18} /></div>
-                <h3>Security</h3>
+                <h3>Keamanan</h3>
                 <p className="muted">PIN lock dan auto-lock melindungi workspace ini.</p>
-                <label className="setting-select">Auto-lock<select value={autoLockMinutes} onChange={(e) => updateAutoLock(e.target.value)}><option value={5}>5 minutes</option><option value={15}>15 minutes</option><option value={30}>30 minutes</option><option value={60}>60 minutes</option></select></label>
-                <div className="setting-actions"><button className="setting-action" onClick={() => setChangePinOpen(true)}>Change PIN</button><button className="setting-action" onClick={() => setUnlocked(false)}>Lock workspace</button></div>
+                <label className="setting-select">Kunci otomatis<select value={autoLockMinutes} onChange={(e) => updateAutoLock(e.target.value)}><option value={5}>5 menit</option><option value={15}>15 menit</option><option value={30}>30 menit</option><option value={60}>60 menit</option></select></label>
+                <div className="setting-actions"><button className="setting-action" onClick={() => setChangePinOpen(true)}>Ubah PIN</button><button className="setting-action" onClick={() => setUnlocked(false)}>Kunci ruang kerja</button></div>
               </div>
               <div className="panel setting-card">
                 <div className="setting-icon"><Database size={18} /></div>
-                <h3>Backup & restore</h3>
+                <h3>Cadangan & pemulihan</h3>
                 <p className="muted">Backup terenkripsi dapat dipindahkan ke perangkat baru.</p>
                 <div className="setting-actions">
-                  <button className="setting-action" onClick={() => { setBackupAction("export"); setBackupPassword(""); }}>Create backup</button>
-                  <button className="setting-action" onClick={() => { setBackupAction("import"); setBackupPassword(""); setRestoreMode("merge"); }}>Restore backup</button>
+                  <button className="setting-action" onClick={() => { setBackupAction("export"); setBackupPassword(""); }}>Buat cadangan</button>
+                  <button className="setting-action" onClick={() => { setBackupAction("import"); setBackupPassword(""); setRestoreMode("merge"); }}>Pulihkan cadangan</button>
                 </div>
               </div>
             </div>
-            <div className="secure-notice"><ShieldCheck size={20} /><div><b>Secure mode enabled</b><span>Data SAKU tersimpan lokal. Personal Vault dienkripsi sebelum disimpan.</span></div></div>
+            <div className="secure-notice"><ShieldCheck size={20} /><div><b>Mode aman aktif</b><span>Data SAKU tersimpan lokal. Brankas pribadi dienkripsi sebelum disimpan.</span></div></div>
           </section>
         )}
         {section === "Finance" && (
           <section className="panel full">
-            <div className="panel-head">
+            <div className="finance-head">
               <div>
-                <h2>Transactions</h2>
-                <p>Track your income and spending.</p>
+                <span className="eyebrow">JURNAL KEUANGAN</span>
+                <h2>Transaksi</h2>
+                <p>Semua pemasukan dan pengeluaran Anda, tersusun rapi.</p>
               </div>
               <button className="primary" onClick={() => setShowAdd(true)}>
                 <Plus size={17} />
-                Add transaction
+                Tambah transaksi
               </button>
             </div>
-            <div className="filter-row">
-              <button className={transactionFilter === "all" ? "filter active" : "filter"} onClick={() => setTransactionFilter("all")}>All</button>
-              <button className={transactionFilter === "income" ? "filter active" : "filter"} onClick={() => setTransactionFilter("income")}>Income</button>
-              <button className={transactionFilter === "expense" ? "filter active" : "filter"} onClick={() => setTransactionFilter("expense")}>Expense</button>
+            <div className="finance-summary">
+              <div><small>PEMASUKAN</small><strong className="income">+ {money(summary.income)}</strong></div>
+              <div><small>PENGELUARAN</small><strong className="expense-text">- {money(summary.expense)}</strong></div>
+              <div><small>TABUNGAN</small><strong className="saving-text">{money(summary.savings)}</strong></div>
+              <div><small>SALDO TERSEDIA</small><strong>{money(summary.income - summary.expense - summary.savings)}</strong></div>
+              <div className="transaction-count"><small>TRANSAKSI</small><strong>{visibleTransactions.length}</strong></div>
             </div>
+            <div className="filter-row">
+              <button className={transactionFilter === "all" ? "filter active" : "filter"} onClick={() => setTransactionFilter("all")}>Semua</button>
+              <button className={transactionFilter === "income" ? "filter active" : "filter"} onClick={() => setTransactionFilter("income")}>Pemasukan</button>
+              <button className={transactionFilter === "expense" ? "filter active" : "filter"} onClick={() => setTransactionFilter("expense")}>Pengeluaran</button>
+              <button className={transactionFilter === "saving" ? "filter active" : "filter"} onClick={() => setTransactionFilter("saving")}>Tabungan</button>
+            </div>
+            <div className="transaction-tools"><input className="table-search" value={transactionSearch} onChange={(e) => setTransactionSearch(e.target.value)} placeholder="Cari transaksi atau catatan..." /><select value={transactionMonth} onChange={(e) => setTransactionMonth(e.target.value)}><option value="">Semua bulan</option><option value={new Date().toISOString().slice(0, 7)}>{new Date().toLocaleDateString("id-ID", { month: "long", year: "numeric" })}</option></select><select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}><option value="all">Semua status</option><option value="paid">Sudah dibayar</option><option value="unpaid">Belum dibayar</option></select><select value={transactionSort} onChange={(e) => setTransactionSort(e.target.value)}><option value="date-desc">Terbaru</option><option value="date-asc">Terlama</option><option value="amount-desc">Nominal terbesar</option><option value="amount-asc">Nominal terkecil</option></select></div>
             <form className="budget-strip" onSubmit={saveBudget}>
               <div>
-                <b>Monthly budget</b>
-                <small>Set your spending limit for this month</small>
+                <b>Anggaran bulanan</b>
+                <small>Tentukan batas pengeluaran bulan ini</small>
               </div>
               <input name="amount" type="number" min="0" defaultValue={budget} />
-              <button className="primary">Save budget</button>
+              <button className="primary">Simpan anggaran</button>
             </form>
             <div className="savings-strip"><form onSubmit={addSavings}><b>New savings goal</b><input name="title" required placeholder="Goal name" /><input name="target" type="number" min="1" required placeholder="Target amount" /><input name="current" type="number" min="0" placeholder="Saved" /><input name="deadline" type="date" /><button className="primary">Add goal</button></form>{savings.length > 0 && <div className="savings-list">{savings.map((g) => <div className="goal" key={g.id}><span><b>{g.title}</b><small>{money(g.current)} / {money(g.target)}</small></span><progress value={g.current} max={g.target} /><button className="row-delete" onClick={() => setEditingSavings(g)}>Edit</button><button className="row-delete" onClick={() => deleteSavings(g.id)}>Delete</button></div>)}</div>}</div>
-            <div className="table">
+            <div className="transaction-list">
+              <div className="transaction-list-head"><span aria-hidden="true" /><span>DESCRIPTION</span><span>DATE</span><span>AMOUNT</span><span>ACTION</span></div>
               {visibleTransactions.length ? visibleTransactions.map((x) => (
-                  <div className="table-row">
-                    <span>{x.category}</span>
-                    <span>{x.note}</span>
-                    <span>{new Date(x.date).toLocaleDateString("id-ID")}</span>
-                    <b className={x.type === "income" ? "income" : ""}>
+                  <div className="transaction-item" key={x.id}>
+                    <div className={`transaction-icon ${x.type}`}>
+                      {x.type === "income" ? <ArrowDownRight size={17} /> : <ArrowUpRight size={17} />}
+                    </div>
+                    <div className="transaction-description"><b>{x.category}</b><small>{x.note || (x.type === "income" ? "Pemasukan" : x.type === "saving" ? "Tabungan" : "Pengeluaran")}</small>{x.type !== "income" && <span className={`payment-badge ${x.paid !== 0 ? "paid" : "unpaid"}`}>{x.paid !== 0 ? "Sudah dialokasikan" : "Belum dialokasikan"}</span>}</div>
+                    <span className="transaction-date">{new Date(x.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                    <b className={`transaction-amount ${x.type === "income" ? "income" : x.type === "saving" ? "saving-text" : "expense-text"}`}>
                       {x.type === "income" ? "+" : "-"} {money(x.amount)}
                     </b>
-                  <button className="row-delete" onClick={() => editTransaction(x)}>Edit</button>
-                    <button className="row-delete" onClick={() => deleteTransaction(x.id)}>
-                      Delete
-                    </button>
+                    <div className="transaction-actions">{x.type === "expense" && x.paid === 0 && <button className="pay-action" onClick={() => markTransactionPaid(x)}>Bayar</button>}<button onClick={() => editTransaction(x)}>Edit</button><button onClick={() => deleteTransaction(x.id)}>Delete</button></div>
                   </div>
-                )) : <div className="empty compact"><span>No transactions match this filter.</span></div>}
+                )) : <div className="empty compact"><span>Tidak ada transaksi yang sesuai.</span></div>}
             </div>
           </section>
         )}
         {section === "Vault" && (
           <section className="panel full">
-            <div className="panel-head">
+            <div className="vault-hero">
               <div>
-                <h2>Personal Vault</h2>
-                <p>Your encrypted private information.</p>
+                <span className="eyebrow">PRIVAT & TERENKRIPSI</span>
+                <h2>Brankas Pribadi</h2>
+                <p>Simpan password dan catatan penting dalam satu tempat yang aman.</p>
               </div>
+              <div className="vault-stat"><strong>{visibleVault.length}</strong><span>item aman</span></div>
               <button className="primary" onClick={() => { setEditingVault(null); setVaultKind("account"); setVaultPassword(""); setShowVaultAdd(true); }}>
                 {" "}
                 <Plus size={17} />
-                Add item
+                Tambah item
               </button>
             </div>
             <div className="filter-row">
@@ -507,24 +545,21 @@ export default function App() {
                 <button key={value} className={vaultFilter === value ? "filter active" : "filter"} onClick={() => setVaultFilter(value)}>{label}</button>
               ))}
             </div>
-            <input className="vault-search" value={vaultSearch} onChange={(e) => setVaultSearch(e.target.value)} placeholder="Search vault items..." />
+            <input className="vault-search" value={vaultSearch} onChange={(e) => setVaultSearch(e.target.value)} placeholder="Cari item brankas..." />
             <div className="vault-grid">
               {visibleVault.length ? (
                 visibleVault.map((v) => (
                   <div className="vault-card" key={v.id} onClick={() => openVault(v.id)}>
-                    <LockKeyhole size={18} />
-                    <b>{v.title}</b>
-                    <small>{v.kind}</small>
-                    <button className="row-delete" onClick={(e) => { e.stopPropagation(); deleteVault(v.id); }}>
-                      Delete
-                    </button>
+                    <div className={`vault-icon ${v.kind}`}><LockKeyhole size={18} /></div>
+                    <div className="vault-card-body"><b>{v.title}</b><small>{v.kind === "secure-note" ? "Secure note" : v.kind === "identity" ? "Identity" : "Account"}</small><span>{v.payload?.username || "Encrypted private item"}</span></div>
+                    <div className="vault-card-actions"><button onClick={(e) => { e.stopPropagation(); openVault(v.id); }}>Open</button><button onClick={(e) => { e.stopPropagation(); deleteVault(v.id); }}>Delete</button></div>
                   </div>
                 ))
               ) : (
                 <div className="empty">
                   <LockKeyhole size={28} />
-                  <b>Your vault is empty</b>
-                  <span>Add passwords, secure notes, and identity details.</span>
+                  <b>Brankas masih kosong</b>
+                  <span>Tambahkan password, catatan aman, atau identitas.</span>
                 </div>
               )}
             </div>
@@ -533,31 +568,33 @@ export default function App() {
         {showAdd && (
           <div className="modal-backdrop">
             <form className="modal" onSubmit={addTx}>
-                <h2>{editingTx ? "Edit transaction" : "Add transaction"}</h2>
+                <h2>{editingTx ? "Edit transaksi" : "Tambah transaksi"}</h2>
               <label>
-                Type
+                Jenis
                   <select name="type" defaultValue={editingTx?.type ?? "expense"}>
-                  <option value="expense">Expense</option>
-                  <option value="income">Income</option>
+                  <option value="expense">Pengeluaran</option>
+                  <option value="saving">Tabungan</option>
+                  <option value="income">Pemasukan</option>
                 </select>
               </label>
               <label>
-                Category
-                  <input name="category" required defaultValue={editingTx?.category ?? ""} placeholder="e.g. Groceries" />
+                Kategori
+                  <input name="category" required defaultValue={editingTx?.category ?? ""} placeholder="mis. Belanja" />
               </label>
               <label>
-                Amount
-                  <input name="amount" type="number" required defaultValue={editingTx?.amount ?? ""} placeholder="0" />
+                Jumlah
+                  <input name="amount" type="text" inputMode="numeric" required defaultValue={editingTx ? rupiahInput(editingTx.amount) : ""} onInput={(e) => { e.currentTarget.value = rupiahInput(e.currentTarget.value); }} placeholder="Rp 0" />
               </label>
               <label>
-                Note
-                  <input name="note" defaultValue={editingTx?.note ?? ""} placeholder="Optional note" />
+                Catatan
+                  <input name="note" defaultValue={editingTx?.note ?? ""} placeholder="Catatan opsional" />
               </label>
+              <label className="paid-toggle"><input name="paid" type="checkbox" defaultChecked={editingTx ? editingTx.paid !== 0 : true} /><span>Sudah dibayar</span><small>Pengeluaran yang belum dibayar tidak mengurangi saldo.</small></label>
               <div className="modal-actions">
                 <button type="button" onClick={() => { setShowAdd(false); setEditingTx(null); }}>
-                  Cancel
+                  Batal
                 </button>
-                <button className="primary">Save transaction</button>
+                <button className="primary">Simpan transaksi</button>
               </div>
             </form>
           </div>
@@ -620,11 +657,9 @@ export default function App() {
               </div>
               <div className="secret-field">
                 <b>Password</b>
-                <span>{selectedVault.payload?.password ? "••••••••" : "—"}</span>
+                <span className={showVaultPassword ? "revealed-secret" : ""}>{selectedVault.payload?.password ? (showVaultPassword ? selectedVault.payload.password : "••••••••••••") : "—"}</span>
                 {selectedVault.payload?.password && (
-                  <button className="row-delete" onClick={() => copySecret(selectedVault.payload.password)}>
-                    Copy
-                  </button>
+                  <div className="secret-actions"><button onClick={() => setShowVaultPassword(!showVaultPassword)} title={showVaultPassword ? "Hide password" : "Show password"}>{showVaultPassword ? <EyeOff size={15} /> : <Eye size={15} />}</button><button onClick={() => copySecret(selectedVault.payload.password)}>Copy</button></div>
                 )}
               </div>
               <div className="secret-field">

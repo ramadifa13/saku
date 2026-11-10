@@ -1,10 +1,13 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "node:path";
 import crypto from "node:crypto";
-import Database from "better-sqlite3";
-import log from "electron-log/main";
+import { createRequire } from "node:module";
+import type DatabaseType from "better-sqlite3";
+const require = createRequire(import.meta.url);
+const Database = require("better-sqlite3");
+const log = { initialize() {}, info(...args: unknown[]) { console.info(...args); }, error(...args: unknown[]) { console.error(...args); } };
 
-let db: Database.Database;
+let db: DatabaseType.Database;
 const vaultKey = () =>
   crypto
     .createHash("sha256")
@@ -18,6 +21,8 @@ function initDb() {
     CREATE TABLE IF NOT EXISTS vault (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, title TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS budgets (month TEXT PRIMARY KEY, amount INTEGER NOT NULL);`);
   db.exec("CREATE TABLE IF NOT EXISTS savings_goals (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, target INTEGER NOT NULL, current INTEGER NOT NULL DEFAULT 0, deadline TEXT)");
+  const txColumns = db.prepare("PRAGMA table_info(transactions)").all() as any[];
+  if (!txColumns.some((column) => column.name === "paid")) db.exec("ALTER TABLE transactions ADD COLUMN paid INTEGER NOT NULL DEFAULT 1");
 }
 function encrypt(value: unknown) {
   const iv = crypto.randomBytes(12);
@@ -48,7 +53,7 @@ function snapshot() {
   return {
     version: 2,
     createdAt: new Date().toISOString(),
-    transactions: db.prepare("SELECT type,category,amount,note,date FROM transactions").all(),
+    transactions: db.prepare("SELECT type,category,amount,note,date,paid FROM transactions").all(),
     vault,
   };
 }
@@ -71,12 +76,12 @@ app.whenReady().then(() => {
   log.info("SAKU starting", { version: app.getVersion() });
   initDb();
   ipcMain.handle("app:summary", () => {
-    const rows = db.prepare("SELECT type, SUM(amount) total FROM transactions GROUP BY type").all() as any[];
-    return { income: rows.find((r) => r.type === "income")?.total ?? 0, expense: rows.find((r) => r.type === "expense")?.total ?? 0 };
+    const rows = db.prepare("SELECT type, SUM(amount) total FROM transactions WHERE type='income' OR paid=1 GROUP BY type").all() as any[];
+    return { income: rows.find((r) => r.type === "income")?.total ?? 0, expense: rows.find((r) => r.type === "expense")?.total ?? 0, savings: rows.find((r) => r.type === "saving")?.total ?? 0 };
   });
   ipcMain.handle("transactions:list", () => db.prepare("SELECT * FROM transactions ORDER BY date DESC, id DESC").all());
   ipcMain.handle("transactions:delete", (_e, id: number) => db.prepare("DELETE FROM transactions WHERE id=?").run(id));
-  ipcMain.handle("transactions:update", (_e, tx: any) => { if (!Number.isInteger(tx.id) || !["income", "expense"].includes(tx.type) || !tx.category || !Number.isSafeInteger(tx.amount) || tx.amount < 0) throw new Error("Transaksi tidak valid"); return db.prepare("UPDATE transactions SET type=?,category=?,amount=?,note=?,date=? WHERE id=?").run(tx.type, tx.category, tx.amount, tx.note ?? "", tx.date, tx.id); });
+  ipcMain.handle("transactions:update", (_e, tx: any) => { if (!Number.isInteger(tx.id) || !["income", "expense", "saving"].includes(tx.type) || !tx.category || !Number.isSafeInteger(tx.amount) || tx.amount < 0) throw new Error("Transaksi tidak valid"); return db.prepare("UPDATE transactions SET type=?,category=?,amount=?,note=?,date=?,paid=? WHERE id=?").run(tx.type, tx.category, tx.amount, tx.note ?? "", tx.date, tx.type === "income" ? 1 : tx.paid ? 1 : 0, tx.id); });
   ipcMain.handle("budget:get", () => {
     const month = new Date().toISOString().slice(0, 7);
     return db.prepare("SELECT month, amount FROM budgets WHERE month=?").get(month) ?? { month, amount: 0 };
@@ -92,8 +97,8 @@ app.whenReady().then(() => {
   ipcMain.handle("savings:delete", (_e, id: number) => db.prepare("DELETE FROM savings_goals WHERE id=?").run(id));
   ipcMain.handle("transactions:add", (_e, tx) =>
     db
-      .prepare("INSERT INTO transactions(type,category,amount,note,date) VALUES(?,?,?,?,?)")
-      .run(tx.type, tx.category, tx.amount, tx.note ?? "", tx.date),
+      .prepare("INSERT INTO transactions(type,category,amount,note,date,paid) VALUES(?,?,?,?,?,?)")
+      .run(tx.type, tx.category, tx.amount, tx.note ?? "", tx.date, tx.type === "income" ? 1 : tx.paid ? 1 : 0),
   );
   ipcMain.handle("vault:list", () => db.prepare("SELECT id,kind,title,created_at FROM vault ORDER BY id DESC").all());
   ipcMain.handle("vault:add", (_e, item) =>
@@ -181,9 +186,9 @@ app.whenReady().then(() => {
         fs.copyFileSync(path.join(app.getPath("userData"), "saku.sqlite"), backupPath);
         db.exec("DELETE FROM transactions; DELETE FROM vault;");
       }
-      const addTx = db.prepare("INSERT INTO transactions(type,category,amount,note,date) VALUES(?,?,?,?,?)");
-      const existingTx = new Set((db.prepare("SELECT type,category,amount,note,date FROM transactions").all() as any[]).map((x) => JSON.stringify(x)));
-      for (const x of tx) { const key = JSON.stringify({ type: x.type, category: x.category, amount: x.amount, note: x.note ?? "", date: x.date }); if (mode === "merge" && existingTx.has(key)) continue; addTx.run(x.type, x.category, x.amount, x.note ?? "", x.date); }
+    const addTx = db.prepare("INSERT INTO transactions(type,category,amount,note,date,paid) VALUES(?,?,?,?,?,?)");
+    const existingTx = new Set((db.prepare("SELECT type,category,amount,note,date,paid FROM transactions").all() as any[]).map((x) => JSON.stringify(x)));
+    for (const x of tx) { const paid = x.type === "income" ? 1 : x.paid === undefined ? 1 : x.paid ? 1 : 0; const row = { type: x.type, category: x.category, amount: x.amount, note: x.note ?? "", date: x.date, paid }; if (mode === "merge" && existingTx.has(JSON.stringify(row))) continue; addTx.run(row.type, row.category, row.amount, row.note, row.date, row.paid); }
       const addVault = db.prepare("INSERT INTO vault(kind,title,payload,created_at) VALUES(?,?,?,?)");
       const existingVault = new Set((db.prepare("SELECT kind,title,created_at FROM vault").all() as any[]).map((x) => JSON.stringify(x)));
       for (const x of vault) { const key = JSON.stringify({ kind: x.kind, title: x.title, created_at: x.created_at }); if (mode === "merge" && existingVault.has(key)) continue; addVault.run(x.kind, x.title, encrypt(x.payload), x.created_at); }
