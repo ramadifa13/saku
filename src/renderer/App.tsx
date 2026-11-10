@@ -204,7 +204,7 @@ export default function App() {
     setEditingVault(null);
     setVaultPassword("");
     setShowVaultAdd(false);
-    toast.success("Vault item tersimpan terenkripsi");
+    toast.success("Item brankas tersimpan dan terenkripsi");
     const rows = await window.saku.vault.list();
     setVault(rows);
   }
@@ -230,7 +230,7 @@ export default function App() {
   }
   function editTransaction(tx: any) { setEditingTx(tx); setShowAdd(true); }
   async function deleteVault(id: number) {
-    setConfirmDialog({ title: "Delete vault item", message: "Item terenkripsi ini akan dihapus secara permanen.", action: async () => { await window.saku.vault.delete(id); setVault(await window.saku.vault.list()); toast.success("Item vault dihapus"); } });
+    setConfirmDialog({ title: "Hapus item brankas", message: "Item terenkripsi ini akan dihapus secara permanen.", action: async () => { await window.saku.vault.delete(id); setVault(await window.saku.vault.list()); toast.success("Item brankas dihapus"); } });
   }
   async function openVault(id: number) {
     const item = await window.saku.vault.read(id);
@@ -322,15 +322,15 @@ export default function App() {
       <main>
         <header>
           <div>
-            <p className="eyebrow">{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date()).toUpperCase()}</p>
-            <h1>{section === "Overview" ? "Good morning, Rama." : section}</h1>
+            <p className="eyebrow">{new Intl.DateTimeFormat("id-ID", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date()).toUpperCase()}</p>
+            <h1>{section === "Overview" ? "Selamat datang, Rama." : { Finance: "Keuangan", Vault: "Brankas", Settings: "Pengaturan" }[section as "Finance" | "Vault" | "Settings"]}</h1>
             <p className="muted">Ruang kerja pribadi Anda, rapi dan aman.</p>
           </div>
           <div className="header-actions">
-            <button className="icon-btn" onClick={() => setDark(!dark)}>
+            <button className="icon-btn" aria-label={dark ? "Aktifkan mode terang" : "Aktifkan mode gelap"} title={dark ? "Mode terang" : "Mode gelap"} onClick={() => setDark(!dark)}>
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <div className="profile">R</div>
+            <div className="profile" aria-label="Profil Rama">R</div>
           </div>
         </header>
         {section === "Overview" && (
@@ -531,7 +531,7 @@ export default function App() {
               <div>
                 <span className="eyebrow">PRIVAT & TERENKRIPSI</span>
                 <h2>Brankas Pribadi</h2>
-                <p>Simpan password dan catatan penting dalam satu tempat yang aman.</p>
+                <p>Simpan kata sandi dan catatan penting dalam satu tempat yang aman.</p>
               </div>
               <div className="vault-stat"><strong>{visibleVault.length}</strong><span>item aman</span></div>
               <button className="primary" onClick={() => { setEditingVault(null); setVaultKind("account"); setVaultPassword(""); setShowVaultAdd(true); }}>
@@ -541,7 +541,7 @@ export default function App() {
               </button>
             </div>
             <div className="filter-row">
-              {[["all", "All"], ["account", "Accounts"], ["identity", "Identity"], ["secure-note", "Secure notes"]].map(([value, label]) => (
+              {[["all", "Semua"], ["account", "Akun"], ["identity", "Identitas"], ["secure-note", "Catatan aman"]].map(([value, label]) => (
                 <button key={value} className={vaultFilter === value ? "filter active" : "filter"} onClick={() => setVaultFilter(value)}>{label}</button>
               ))}
             </div>
@@ -551,8 +551,8 @@ export default function App() {
                 visibleVault.map((v) => (
                   <div className="vault-card" key={v.id} onClick={() => openVault(v.id)}>
                     <div className={`vault-icon ${v.kind}`}><LockKeyhole size={18} /></div>
-                    <div className="vault-card-body"><b>{v.title}</b><small>{v.kind === "secure-note" ? "Secure note" : v.kind === "identity" ? "Identity" : "Account"}</small><span>{v.payload?.username || "Encrypted private item"}</span></div>
-                    <div className="vault-card-actions"><button onClick={(e) => { e.stopPropagation(); openVault(v.id); }}>Open</button><button onClick={(e) => { e.stopPropagation(); deleteVault(v.id); }}>Delete</button></div>
+                    <div className="vault-card-body"><b>{v.title}</b><small>{v.kind === "secure-note" ? "Catatan aman" : v.kind === "identity" ? "Identitas" : "Akun"}</small><span>{v.payload?.username || "Item pribadi terenkripsi"}</span></div>
+                    <div className="vault-card-actions"><button onClick={(e) => { e.stopPropagation(); openVault(v.id); }}>Buka</button><button onClick={(e) => { e.stopPropagation(); deleteVault(v.id); }}>Hapus</button></div>
                   </div>
                 ))
               ) : (
@@ -612,36 +612,36 @@ export default function App() {
         {showVaultAdd && (
           <div className="modal-backdrop">
             <form className="modal" onSubmit={addVault}>
-                <h2>{editingVault ? "Edit vault item" : "Add vault item"}</h2>
+                <h2>{editingVault ? "Edit item brankas" : "Tambah item brankas"}</h2>
               <label>
-                Type
+                Jenis
                   <select name="kind" value={vaultKind} onChange={(e) => setVaultKind(e.target.value)}>
-                  <option value="account">Account</option>
-                  <option value="identity">Identity</option>
-                  <option value="secure-note">Secure note</option>
+                  <option value="account">Akun</option>
+                  <option value="identity">Identitas</option>
+                  <option value="secure-note">Catatan aman</option>
                 </select>
               </label>
               <label>
-                Title
-                  <input name="title" required defaultValue={editingVault?.title ?? ""} placeholder="e.g. Email utama" />
+                Judul
+                  <input name="title" required defaultValue={editingVault?.title ?? ""} placeholder="mis. Email utama" />
               </label>
               <label>
-                {vaultKind === "identity" ? "Full name / identity" : "Username / email"}
-                  <input name="username" defaultValue={editingVault?.payload?.username ?? ""} placeholder={vaultKind === "identity" ? "Nama lengkap" : "Username atau email"} />
+                {vaultKind === "identity" ? "Nama lengkap / identitas" : "Nama pengguna / email"}
+                  <input name="username" defaultValue={editingVault?.payload?.username ?? ""} placeholder={vaultKind === "identity" ? "Nama lengkap" : "Nama pengguna atau email"} />
               </label>
               <label>
-                {vaultKind === "secure-note" ? "Optional secret" : "Password"}
-                <div className="password-row"><input type="password" name="password" value={vaultPassword} onChange={(e) => setVaultPassword(e.target.value)} placeholder={editingVault ? "Leave blank to clear" : "Optional"} /><button type="button" className="row-delete" onClick={generatePassword}>Generate</button></div>
+                {vaultKind === "secure-note" ? "Rahasia opsional" : "Kata sandi"}
+                <div className="password-row"><input type="password" name="password" value={vaultPassword} onChange={(e) => setVaultPassword(e.target.value)} placeholder={editingVault ? "Kosongkan untuk menghapus" : "Opsional"} /><button type="button" className="row-delete" onClick={generatePassword}>Buat otomatis</button></div>
               </label>
               <label>
-                Secure note
-                <textarea name="note" rows={3} defaultValue={editingVault?.payload?.note ?? ""} placeholder="Encrypted note" />
+                Catatan aman
+                <textarea name="note" rows={3} defaultValue={editingVault?.payload?.note ?? ""} placeholder="Catatan terenkripsi" />
               </label>
               <div className="modal-actions">
                 <button type="button" onClick={() => { setShowVaultAdd(false); setEditingVault(null); setVaultPassword(""); }}>
-                  Cancel
+                  Batal
                 </button>
-                <button className="primary">Save securely</button>
+                <button className="primary">Simpan dengan aman</button>
               </div>
             </form>
           </div>
@@ -650,25 +650,26 @@ export default function App() {
           <div className="modal-backdrop">
             <div className="modal">
               <h2>{selectedVault.title}</h2>
-              <p className="muted">{selectedVault.kind}</p>
+              <p className="muted">{selectedVault.kind === "secure-note" ? "Catatan aman" : selectedVault.kind === "identity" ? "Identitas" : "Akun"}</p>
               <div className="secret-field">
-                <b>Username</b>
+                <b>Nama pengguna</b>
                 <span>{selectedVault.payload?.username || "—"}</span>
               </div>
               <div className="secret-field">
-                <b>Password</b>
+                <b>Kata sandi</b>
                 <span className={showVaultPassword ? "revealed-secret" : ""}>{selectedVault.payload?.password ? (showVaultPassword ? selectedVault.payload.password : "••••••••••••") : "—"}</span>
                 {selectedVault.payload?.password && (
-                  <div className="secret-actions"><button onClick={() => setShowVaultPassword(!showVaultPassword)} title={showVaultPassword ? "Hide password" : "Show password"}>{showVaultPassword ? <EyeOff size={15} /> : <Eye size={15} />}</button><button onClick={() => copySecret(selectedVault.payload.password)}>Copy</button></div>
+                  <div className="secret-actions"><button onClick={() => setShowVaultPassword(!showVaultPassword)} title={showVaultPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}>{showVaultPassword ? <EyeOff size={15} /> : <Eye size={15} />}</button><button onClick={() => copySecret(selectedVault.payload.password)}>Salin</button></div>
                 )}
               </div>
               <div className="secret-field">
-                <b>Note</b>
+                <b>Catatan</b>
                 <span>{selectedVault.payload?.note || "—"}</span>
+                {selectedVault.payload?.note && <div className="secret-actions"><button onClick={() => copySecret(selectedVault.payload.note)}>Salin</button></div>}
               </div>
               <div className="modal-actions">
                 <button className="primary" onClick={() => { setEditingVault(selectedVault); setVaultKind(selectedVault.kind ?? "account"); setVaultPassword(selectedVault.payload?.password ?? ""); setSelectedVault(null); setShowVaultAdd(true); }}>Edit</button>
-                <button onClick={() => setSelectedVault(null)}>Close</button>
+                <button onClick={() => setSelectedVault(null)}>Tutup</button>
               </div>
             </div>
           </div>
